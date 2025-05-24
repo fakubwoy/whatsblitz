@@ -173,6 +173,8 @@ class WhatsAppAutomation {
 
   // Handle file upload and parsing
   async handleFileUpload(file) {
+      document.getElementById('wa-file-input').value = '';
+
     if (!file) return;
     
     const fileExtension = file.name.split('.').pop().toLowerCase();
@@ -1118,21 +1120,27 @@ async typeTextAdvanced(element, text) {
   }
 
   showAlert(message) {
-    // Create toast notification
-    const toast = document.createElement('div');
-    toast.className = 'wa-toast';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    setTimeout(() => {
-      toast.classList.add('wa-toast-show');
-    }, 100);
-    
-    setTimeout(() => {
-      toast.classList.remove('wa-toast-show');
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
-  }
+  // Create toast notification
+  const toast = document.createElement('div');
+  toast.className = 'wa-toast';
+  toast.textContent = message;
+  
+  // Stack toasts vertically by adjusting top position
+  const existingToasts = document.querySelectorAll('.wa-toast');
+  const topOffset = existingToasts.length * 70; // 70px spacing between toasts
+  toast.style.top = `${20 + topOffset}px`;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.classList.add('wa-toast-show');
+  }, 100);
+  
+  setTimeout(() => {
+    toast.classList.remove('wa-toast-show');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
 }
 
 // Initialize when page loads
