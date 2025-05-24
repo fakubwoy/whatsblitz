@@ -22,7 +22,7 @@
     {
       "matches": ["https://web.whatsapp.com/*"],
       "js": [
-      "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+        "xlsx.full.min.js",
       "content.js"
     ],
       "css": ["content.css"],

@@ -35,7 +35,6 @@ class WhatsAppAutomation {
           <div class="wa-controls">
             <button id="wa-start-btn" class="wa-primary-btn">Start Sending</button>
             <button id="wa-stop-btn" class="wa-danger-btn" style="display: none;">Stop</button>
-            <button id="wa-debug-btn" class="wa-secondary-btn">Debug WhatsApp</button>
           </div>
         </div>
         
