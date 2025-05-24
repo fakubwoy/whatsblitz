@@ -197,56 +197,95 @@ class WhatsAppAutomation {
   }
 
   // Parse CSV file
-  parseCSV(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const text = e.target.result;
-          const lines = text.split('\n').filter(line => line.trim());
-          const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+  // Parse CSV file - Updated to handle commas in messages
+parseCSV(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        const data = [];
+        const errors = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+          const lineNumber = i + 1;
+          const values = this.parseCSVLineForMessage(lines[i]);
           
-          const data = [];
-          for (let i = 1; i < lines.length; i++) {
-            const values = this.parseCSVLine(lines[i]);
-            if (values.length >= 3) {
-              data.push({
-                phone: values[0]?.trim(),
-                name: values[1]?.trim(),
-                message: values[2]?.trim()
-              });
-            }
+          // Check if we have all required fields
+          if (!values.phone || !values.name || !values.message) {
+            errors.push(`Line ${lineNumber}: Missing required fields (phone, name, or message)`);
+            continue;
           }
-          resolve(data);
-        } catch (error) {
-          reject(error);
+          
+          // Validate phone number
+          const phoneValidation = this.validatePhoneNumber(values.phone);
+          if (!phoneValidation.isValid) {
+            errors.push(`Line ${lineNumber}: ${phoneValidation.error} - "${values.phone}"`);
+            continue;
+          }
+          
+          data.push({
+            phone: phoneValidation.cleanPhone,
+            name: values.name.trim(),
+            message: values.message.trim()
+          });
         }
-      };
-      reader.onerror = () => reject(new Error('Failed to read file'));
-      reader.readAsText(file);
-    });
-  }
-
-  // Parse CSV line (handles quotes and commas)
-  parseCSVLine(line) {
-    const result = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        result.push(current);
-        current = '';
-      } else {
-        current += char;
+        
+        // Show errors if any
+        if (errors.length > 0) {
+          const errorMessage = `Found ${errors.length} error(s) in CSV:\n\n${errors.slice(0, 5).join('\n')}${errors.length > 5 ? '\n...and more' : ''}`;
+          this.showAlert(`⚠️ ${errorMessage}`);
+        }
+        
+        resolve(data);
+      } catch (error) {
+        reject(error);
       }
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
+}
+
+// Parse CSV line specifically for phone, name, and message format
+parseCSVLineForMessage(line) {
+  const result = { phone: '', name: '', message: '' };
+  let current = '';
+  let inQuotes = false;
+  let fieldIndex = 0;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes && fieldIndex < 2) {
+      // Only treat comma as delimiter for first two fields (phone and name)
+      if (fieldIndex === 0) {
+        result.phone = current;
+      } else if (fieldIndex === 1) {
+        result.name = current;
+      }
+      current = '';
+      fieldIndex++;
+    } else {
+      current += char;
     }
-    result.push(current);
-    return result;
   }
+  
+  // Handle the last field (message) - everything after the second comma
+  if (fieldIndex === 2) {
+    result.message = current;
+  } else if (fieldIndex === 1) {
+    result.name = current;
+  } else if (fieldIndex === 0) {
+    result.phone = current;
+  }
+  
+  return result;
+}
 
   // Parse Excel file (simplified - would need SheetJS library in real implementation)
 // Parse Excel file using SheetJS library
@@ -332,7 +371,23 @@ processExcelData(arrayBuffer, resolve, reject) {
     reject(new Error('Error parsing Excel file: ' + error.message));
   }
 }
-
+validatePhoneNumber(phone) {
+  // Remove all non-digit characters except +
+  const cleanPhone = phone.replace(/[^\d+]/g, '');
+  
+  // Check if phone number is valid (should be 10-15 digits, optionally starting with +)
+  const phoneRegex = /^(\+\d{1,3})?\d{10,15}$/;
+  
+  if (!cleanPhone || cleanPhone.length < 10) {
+    return { isValid: false, error: 'Phone number too short (minimum 10 digits)' };
+  }
+  
+  if (!phoneRegex.test(cleanPhone)) {
+    return { isValid: false, error: 'Invalid phone number format' };
+  }
+  
+  return { isValid: true, cleanPhone };
+}
   // Display contacts preview
   displayContactsPreview() {
     const previewDiv = document.getElementById('wa-contacts-preview');
@@ -366,36 +421,40 @@ processExcelData(arrayBuffer, resolve, reject) {
 
   // Start automation process
   async startAutomation() {
-    if (this.contacts.length === 0) {
-      this.showAlert('❌ Please upload contacts first');
-      return;
-    }
+  if (this.contacts.length === 0) {
+    this.showAlert('❌ Please upload contacts first');
+    return;
+  }
 
-    console.log('Checking if WhatsApp is ready...');
+  console.log('Checking if WhatsApp is ready...');
+  
+  const readyCheck = this.isWhatsAppReady();
+  if (!readyCheck.isReady) {
+    if (readyCheck.showAlert) {
+      this.showAlert(`❌ ${readyCheck.reason}`);
+    }
     
-    const readyCheck = this.isWhatsAppReady();
-    if (!readyCheck.isReady) {
-      this.showAlert(`❌ WhatsApp Web is not ready: ${readyCheck.reason}`);
-      
-      // Show detailed status for debugging
+    // Show detailed status for debugging only if it's a technical issue
+    if (!readyCheck.reason.includes('WhatsApp Web') && !readyCheck.reason.includes('QR code')) {
       setTimeout(() => {
         this.debugWhatsApp();
       }, 1000);
-      
-      return;
     }
-
-    console.log('WhatsApp is ready, starting automation...');
     
-    this.isRunning = true;
-    this.currentIndex = 0;
-    
-    document.getElementById('wa-start-btn').style.display = 'none';
-    document.getElementById('wa-stop-btn').style.display = 'block';
-    document.getElementById('wa-progress').style.display = 'block';
-    
-    await this.processContacts();
+    return;
   }
+
+  console.log('WhatsApp is ready, starting automation...');
+  
+  this.isRunning = true;
+  this.currentIndex = 0;
+  
+  document.getElementById('wa-start-btn').style.display = 'none';
+  document.getElementById('wa-stop-btn').style.display = 'block';
+  document.getElementById('wa-progress').style.display = 'block';
+  
+  await this.processContacts();
+}
 
   // Stop automation
   stopAutomation() {
@@ -788,112 +847,125 @@ async typeTextAdvanced(element, text) {
 
   // Enhanced WhatsApp ready check with detailed feedback
   isWhatsAppReady() {
-    // Multiple checks to ensure WhatsApp is ready
-    const chatListSelectors = [
-      '[data-testid="chat-list"]',
-      '#pane-side',
-      'div[aria-label="Chat list"]',
-      '[data-testid="side"]'
-    ];
-    
-    let chatList = null;
-    for (const selector of chatListSelectors) {
-      chatList = document.querySelector(selector);
-      if (chatList) break;
-    }
-    
-    const searchSelectors = [
-      '[data-testid="chat-list-search"]',
-      'div[title="Search or start new chat"]',
-      '[data-testid="search-container"]',
-      'div[role="textbox"][title*="Search"]',
-      'div[role="textbox"][placeholder*="Search"]',
-      'input[placeholder*="Search"]',
-      'div[data-testid="search-input"]',
-      'div[role="textbox"][aria-label*="Search"]'
-    ];
-    
-    let searchBox = null;
-    for (const selector of searchSelectors) {
-      searchBox = document.querySelector(selector);
-      if (searchBox) break;
-    }
-    
-    // Alternative: Check if new chat button exists (which means search might be accessible)
-    const newChatSelectors = [
-      '[data-testid="new-chat-btn"]',
-      '[title="New chat"]',
-      'div[role="button"][title*="New"]',
-      '[aria-label*="New chat"]'
-    ];
-    
-    let newChatBtn = null;
-    for (const selector of newChatSelectors) {
-      newChatBtn = document.querySelector(selector);
-      if (newChatBtn) break;
-    }
-    
-    const mainSelectors = [
-      '[data-testid="conversation-panel-wrapper"]',
-      '#main',
-      'div[data-testid="conversation-info-header"]',
-      '[data-testid="main"]',
-      'div[role="main"]'
-    ];
-    
-    let mainPanel = null;
-    for (const selector of mainSelectors) {
-      mainPanel = document.querySelector(selector);
-      if (mainPanel) break;
-    }
-    
-    // Check if we're not on the loading screen
-    const loadingSelectors = [
-      '[data-testid="intro-md-beta-logo-dark"]',
-      '[data-testid="intro-md-beta-logo-light"]',
-      'div[data-testid="landing-wrapper"]',
-      '[data-testid="startup-animation"]'
-    ];
-    
-    let isLoading = false;
-    for (const selector of loadingSelectors) {
-      if (document.querySelector(selector)) {
-        isLoading = true;
-        break;
-      }
-    }
-    
-    console.log('WhatsApp Ready Check:', {
-      chatList: !!chatList,
-      searchBox: !!searchBox,
-      newChatBtn: !!newChatBtn,
-      mainPanel: !!mainPanel,
-      notLoading: !isLoading,
-      url: window.location.href
-    });
-    
-    // More flexible ready check
-    const hasSearchCapability = searchBox || newChatBtn;
-    const isReady = chatList && hasSearchCapability && !isLoading;
-    
-    let reason = '';
-    if (!chatList) reason = 'Chat list not found';
-    else if (!hasSearchCapability) reason = 'Search box or new chat button not found';
-    else if (isLoading) reason = 'WhatsApp is still loading';
-    else if (!window.location.href.includes('web.whatsapp.com')) reason = 'Not on WhatsApp Web';
-    
+  // Check if we're on WhatsApp Web
+  if (!window.location.href.includes('web.whatsapp.com')) {
     return {
-      isReady,
-      reason,
-      details: {
-        chatList: !!chatList,
-        searchBox: !!searchBox,
-        newChatBtn: !!newChatBtn,
-        mainPanel: !!mainPanel,
-        notLoading: !isLoading
-      }
+      isReady: false,
+      reason: 'Please open WhatsApp Web (web.whatsapp.com) first',
+      showAlert: true
     };
   }
+  
+  // Check if still loading
+  const loadingSelectors = [
+    '[data-testid="intro-md-beta-logo-dark"]',
+    '[data-testid="intro-md-beta-logo-light"]',
+    'div[data-testid="landing-wrapper"]',
+    '[data-testid="startup-animation"]'
+  ];
+  
+  let isLoading = false;
+  for (const selector of loadingSelectors) {
+    if (document.querySelector(selector)) {
+      isLoading = true;
+      break;
+    }
+  }
+  
+  if (isLoading) {
+    return {
+      isReady: false,
+      reason: 'WhatsApp Web is still loading. Please wait and try again.',
+      showAlert: true
+    };
+  }
+  
+  // Check for QR code (not logged in)
+  const qrCodeSelectors = [
+    '[data-testid="qr-code"]',
+    'canvas[aria-label*="QR"]',
+    'div[data-testid="intro-wrapper"]'
+  ];
+  
+  let hasQRCode = false;
+  for (const selector of qrCodeSelectors) {
+    if (document.querySelector(selector)) {
+      hasQRCode = true;
+      break;
+    }
+  }
+  
+  if (hasQRCode) {
+    return {
+      isReady: false,
+      reason: 'Please scan the QR code to log into WhatsApp Web first',
+      showAlert: true
+    };
+  }
+  
+  // Rest of the existing checks...
+  const chatListSelectors = [
+    '[data-testid="chat-list"]',
+    '#pane-side',
+    'div[aria-label="Chat list"]',
+    '[data-testid="side"]'
+  ];
+  
+  let chatList = null;
+  for (const selector of chatListSelectors) {
+    chatList = document.querySelector(selector);
+    if (chatList) break;
+  }
+  
+  const searchSelectors = [
+    '[data-testid="chat-list-search"]',
+    'div[title="Search or start new chat"]',
+    '[data-testid="search-container"]',
+    'div[role="textbox"][title*="Search"]',
+    'div[role="textbox"][placeholder*="Search"]',
+    'input[placeholder*="Search"]',
+    'div[data-testid="search-input"]',
+    'div[role="textbox"][aria-label*="Search"]'
+  ];
+  
+  let searchBox = null;
+  for (const selector of searchSelectors) {
+    searchBox = document.querySelector(selector);
+    if (searchBox) break;
+  }
+  
+  const newChatSelectors = [
+    '[data-testid="new-chat-btn"]',
+    '[title="New chat"]',
+    'div[role="button"][title*="New"]',
+    '[aria-label*="New chat"]'
+  ];
+  
+  let newChatBtn = null;
+  for (const selector of newChatSelectors) {
+    newChatBtn = document.querySelector(selector);
+    if (newChatBtn) break;
+  }
+  
+  const hasSearchCapability = searchBox || newChatBtn;
+  const isReady = chatList && hasSearchCapability;
+  
+  let reason = '';
+  if (!chatList) reason = 'WhatsApp interface not fully loaded. Please refresh the page.';
+  else if (!hasSearchCapability) reason = 'Search functionality not available. Please refresh WhatsApp Web.';
+  
+  return {
+    isReady,
+    reason,
+    showAlert: isReady ? false : true,
+    details: {
+      chatList: !!chatList,
+      searchBox: !!searchBox,
+      newChatBtn: !!newChatBtn
+    }
+  };
+}
+
 
   updateProgress(current, total) {
     const percentage = Math.round((current / total) * 100);
