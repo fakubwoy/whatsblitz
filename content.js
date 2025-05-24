@@ -609,41 +609,116 @@ await this.sleep(100);
       if (contactElement) break;
     }
     
-    if (!contactElement) {
-      // Try pressing Enter to start new chat
-      searchBox.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, bubbles: true}));
-      await this.sleep(2000);
-      
-      // Look for the contact again or continue button
-      const continueSelectors = [
-        'div[role="button"][tabindex="0"]',
-        'button[data-testid*="continue"]',
-        'div[data-testid="continue-btn"]',
-        'span[data-testid="send"]'
-      ];
-      
-      let continueBtn = null;
-      for (const selector of continueSelectors) {
-        const elements = document.querySelectorAll(selector);
-        for (const element of elements) {
-          if (element.textContent.toLowerCase().includes('continue') || 
-              element.textContent.toLowerCase().includes('chat') ||
-              element.getAttribute('data-testid') === 'send') {
-            continueBtn = element;
-            break;
-          }
-        }
-        if (continueBtn) break;
-      }
-      
-      if (continueBtn) {
-        continueBtn.click();
-        await this.sleep(1500);
-      }
-    } else {
-      contactElement.click();
-      await this.sleep(1500);
+    // Replace the entire contact search and validation section with this:
+
+if (!contactElement) {
+  // Try pressing Enter to start new chat
+  searchBox.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', keyCode: 13, bubbles: true}));
+  await this.sleep(3000); // Longer wait to let WhatsApp process
+  
+  // Now check if we actually opened a valid chat
+  // Look for the main chat container (indicates we're in a conversation)
+  const chatContainerSelectors = [
+    '[data-testid="conversation-panel-wrapper"]',
+    '#main',
+    '[data-testid="main"]',
+    'div[data-testid="conversation-info-header"]'
+  ];
+  
+  let chatContainer = null;
+  for (const selector of chatContainerSelectors) {
+    chatContainer = document.querySelector(selector);
+    if (chatContainer && chatContainer.offsetParent !== null) { // Make sure it's visible
+      break;
     }
+  }
+  
+  // Also check if we're still in the search/contacts view
+  const stillInSearch = document.querySelector('[data-testid="chat-list-search"]')?.matches(':focus') ||
+                       document.querySelector('div[title="Search or start new chat"]')?.matches(':focus') ||
+                       document.activeElement === searchBox;
+  
+  if (!chatContainer || stillInSearch) {
+    // Contact not found - clear search and throw error
+    console.log(`Contact not found for phone: ${phone}, clearing search`);
+    
+    // Clear the search box completely
+    searchBox.click();
+    searchBox.focus();
+    await this.sleep(200);
+    
+    // Multiple clearing methods to ensure it works
+    if (searchBox.hasAttribute('data-lexical-editor')) {
+      document.execCommand('selectAll');
+      document.execCommand('delete');
+    } else {
+      searchBox.innerHTML = '';
+      searchBox.textContent = '';
+      searchBox.innerText = '';
+      if (searchBox.value !== undefined) searchBox.value = '';
+    }
+    
+    // Send backspace events to really clear it
+    for (let i = 0; i < 20; i++) {
+      searchBox.dispatchEvent(new KeyboardEvent('keydown', {key: 'Backspace', keyCode: 8, bubbles: true}));
+    }
+    
+    searchBox.dispatchEvent(new Event('input', {bubbles: true}));
+    searchBox.dispatchEvent(new Event('change', {bubbles: true}));
+    
+    // Click away from search to clear focus
+    const sidePanel = document.querySelector('#pane-side') || document.querySelector('[data-testid="side"]');
+    if (sidePanel) {
+      sidePanel.click();
+      await this.sleep(300);
+    }
+    
+    // Press Escape to close any dialogs
+    document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', keyCode: 27, bubbles: true}));
+    await this.sleep(500);
+    
+    throw new Error(`Contact not found or invalid phone number`);
+  }
+  
+  console.log(`Successfully opened chat for ${phone}`);
+} else {
+  // Contact found in search results
+  contactElement.click();
+  await this.sleep(1500);
+}
+
+// Add this validation BEFORE looking for message box:
+// Double-check we're actually in a chat before proceeding
+const finalChatCheck = document.querySelector('[data-testid="conversation-panel-wrapper"]') || 
+                      document.querySelector('#main');
+
+if (!finalChatCheck) {
+  // Still not in a chat - clear search and throw error
+  console.log(`Failed to open chat for ${phone}, clearing search`);
+  
+  searchBox.click();
+  searchBox.focus();
+  await this.sleep(200);
+  
+  // Clear completely
+  if (searchBox.hasAttribute('data-lexical-editor')) {
+    document.execCommand('selectAll');
+    document.execCommand('delete');
+  } else {
+    searchBox.innerHTML = '';
+    searchBox.textContent = '';
+    if (searchBox.value !== undefined) searchBox.value = '';
+  }
+  
+  searchBox.dispatchEvent(new Event('input', {bubbles: true}));
+  
+  // Click away
+  const sidePanel = document.querySelector('#pane-side') || document.querySelector('[data-testid="side"]');
+  if (sidePanel) sidePanel.click();
+  
+  await this.sleep(500);
+  throw new Error(`Unable to open chat for phone number`);
+}
     
     // Find message input box with enhanced selectors
     const messageSelectors = [
