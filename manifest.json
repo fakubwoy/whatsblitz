@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "⚡WhatsBlitz⚡",
+  "version": "1.0.0",
+  "description": "Automate bulk message sending on WhatsApp Web with Excel/CSV support",
+  
+  "permissions": [
+    "scripting",
+    "tabs",
+    "storage"
+  ],
+  
+  "host_permissions": [
+    "https://web.whatsapp.com/*"
+  ],
+  
+  "background": {
+    "service_worker": "background.js"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["https://web.whatsapp.com/*"],
+      "js": [
+      "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",
+      "content.js"
+    ],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "⚡WhatsBlitz⚡"
+  },
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.html"],
+      "matches": ["https://web.whatsapp.com/*"]
+    }
+  ]
+}

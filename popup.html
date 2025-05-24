@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="popup-container">
+        <h2>⚡WhatsBlitz⚡</h2>
+        <div id="status-section">
+            <div id="whatsapp-status" class="status-item">
+                <span class="status-icon">⏳</span>
+                <span id="status-text">Checking WhatsApp...</span>
+            </div>
+        </div>
+        <div class="instructions">
+            <h3>How to use:</h3>
+            <ol>
+                <li>Open <a href="https://web.whatsapp.com" target="_blank">WhatsApp Web</a></li>
+                <li>The bulk messenger sidebar will appear automatically</li>
+                <li>Upload your CSV/Excel file with contacts</li>
+                <li>Click "Start Sending" to begin automation</li>
+            </ol>
+        </div>
+        <div class="csv-format">
+            <h3>📄 CSV Format:</h3>
+            <p>Your file should have these columns:</p>
+            <code>Phone Number, Name, Message</code>
+            <p><strong>Example:</strong></p>
+            <code>1234567890, John Doe, Hi {{name}}, your order is ready!</code>
+        </div>
+    </div>
+    <script src="popup.js"></script>
+</body>
+</html>
