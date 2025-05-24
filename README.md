@@ -97,5 +97,5 @@ Use these placeholders in your messages:
 - Consider breaking large lists into smaller batches
 
 ### Phone Number Format
-Ensure phone numbers are formatted in the way they are saved in your contacts, if they have country codes include them, if they don't, dont't.
-
+- Ensure phone numbers are formatted in the way they are saved in your contacts, if they have country codes include them, if they don't, dont't.
+- You will not be able to send messages to yourself
