@@ -60,7 +60,7 @@ Use these placeholders in your messages:
 ### Step 1: Setup
 1. Open [WhatsApp Web](https://web.whatsapp.com) in Chrome
 2. Scan QR code to log in to your WhatsApp account
-3. The Bulk Messenger sidebar will appear automatically
+3. The WhatsBlitz sidebar will appear automatically
 
 ### Step 2: Upload Contacts
 1. Click "Browse Files" or drag & drop your CSV/Excel file
