@@ -43,6 +43,7 @@ Phone Number,Name,Message
 - Supports both .xlsx and .xls formats
 - First row should contain headers
 - Empty rows will be automatically skipped
+
 | Phone Number | Name        | Message                                                      |
 |--------------|-------------|--------------------------------------------------------------|
 | 1234567890   | John Doe    | Hi {{name}}! Your order #12345 is ready for pickup.          |
